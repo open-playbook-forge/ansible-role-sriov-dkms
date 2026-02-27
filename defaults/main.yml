@@ -1,0 +1,4 @@
+---
+
+sriov_dkms_device_vfs: 7
+sriov_dkms_device_id: "pci0000:00/0000:00:02.0"

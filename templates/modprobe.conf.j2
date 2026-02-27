@@ -1,0 +1,4 @@
+{% include "common/templates/header.j2" ignore missing %}
+
+blacklist xe
+options i915 enable_guc=3{% if sriov_dkms_hypervisor %} max_vfs=7{% endif %}

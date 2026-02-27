@@ -1,0 +1,87 @@
+---
+
+- name: Probe for Proxmox VE
+  ansible.builtin.stat:
+    path: /etc/pve
+  register: sriov_dkms_pve
+
+- name: Register hypervisor state
+  ansible.builtin.set_fact:
+    sriov_dkms_hypervisor: "{{ sriov_dkms_pve.stat.exists
+      and sriov_dkms_pve.stat.isdir }}"
+
+- name: Ensure hypervisor kernel headers
+  ansible.builtin.apt:
+    name: proxmox-default-headers
+    state: present
+  when: sriov_dkms_hypervisor
+
+- name: Ensure guest kernel headers
+  ansible.builtin.apt:
+    name: "linux-headers-amd64"
+    state: present
+  when: not sriov_dkms_hypervisor
+
+- name: Ensure build tools
+  ansible.builtin.apt:
+    name:
+      - "dkms"
+      - "build-*"
+    state: present
+
+- name: Determine latest SRIOV-DKMS release
+  community.general.github_release:
+    user: strongtz
+    repo: i915-sriov-dkms
+    action: latest_release
+  become: false
+  delegate_to: "127.0.0.1"
+  register: sriov_dkms_release
+
+- name: Ensure SRIOV-DKMS module
+  ansible.builtin.apt:
+    state: present
+    deb: "https://github.com/strongtz/i915-sriov-dkms/releases/download/{{
+      sriov_dkms_release.tag }}/i915-sriov-dkms_{{ sriov_dkms_release.tag }}_amd64.deb"
+
+- name: Ensure modprobe configuration
+  ansible.builtin.template:
+    src: "modprobe.conf.j2"
+    dest: "/etc/modprobe.d/ansible-{{ role_name }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Update initramfs
+
+- name: Ensure module configuration
+  ansible.builtin.template:
+    src: "modules-load.conf.j2"
+    dest: "/etc/modules-load.d/ansible-{{ role_name }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  when: sriov_dkms_hypervisor
+  notify: Update initramfs
+
+- name: Ensure sysfsutils
+  ansible.builtin.apt:
+    name: sysfsutils
+    state: present
+  when: sriov_dkms_hypervisor
+
+- name: Ensure sysfs configuration directory
+  ansible.builtin.file:
+    path: /etc/sysfs.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: sriov_dkms_hypervisor
+
+- name: Install sysfs configuration
+  ansible.builtin.template:
+    src: "sysfs.conf.j2"
+    dest: "/etc/sysfs.d/ansible-{{ role_name }}.conf"
+    mode: "0644"
+  when: sriov_dkms_hypervisor
+  notify: Update initramfs
