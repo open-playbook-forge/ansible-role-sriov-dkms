@@ -9,4 +9,4 @@
 
 - name: Reboot
   ansible.builtin.reboot:
-  when: auto_reboot | default(true)
+  when: auto_reboot | default(true) | bool
